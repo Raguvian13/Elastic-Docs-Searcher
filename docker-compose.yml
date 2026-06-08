@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: rag_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo_data:/data/db
+    networks:
+      - rag_network
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: rag_chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/chroma_data:/chroma/chroma
+    networks:
+      - rag_network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: rag_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/rag_db
+      - CHROMA_URL=http://chromadb:8000
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Required for Linux host routing
+    depends_on:
+      - mongodb
+      - chromadb
+    networks:
+      - rag_network
+    volumes:
+      - ./data/docs:/app/docs # Mount docs for ingestion script
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: rag_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - rag_network
+
+networks:
+  rag_network:
+    driver: bridge
